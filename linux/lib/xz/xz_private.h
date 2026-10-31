@@ -58,6 +58,22 @@
 #	include "xz_config.h"
 #endif
 
+/* Fixed-storage builds must not introduce another allocation-capable mode. */
+#ifdef XZ_DEC_FIXED_STORAGE
+# if defined(XZ_DEC_SINGLE) || defined(XZ_DEC_DYNALLOC) \
+		|| defined(XZ_DEC_BCJ) || defined(XZ_DEC_MICROLZMA) \
+		|| defined(XZ_DEC_X86) || defined(XZ_DEC_ARM) \
+		|| defined(XZ_DEC_ARMTHUMB) || defined(XZ_DEC_ARM64) \
+		|| defined(XZ_DEC_RISCV) || defined(XZ_DEC_POWERPC) \
+		|| defined(XZ_DEC_IA64) || defined(XZ_DEC_SPARC)
+#  error "Fixed storage supports only preallocated LZMA2"
+# endif
+# define XZ_DEC_PREALLOC
+XZ_EXTERN size_t xz_dec_lzma2_storage_size(void);
+XZ_EXTERN struct xz_dec_lzma2 *xz_dec_lzma2_init_storage(
+		void *state, uint8_t *dictionary, uint32_t dict_max);
+#endif
+
 /* If no specific decoding mode is requested, enable support for all modes. */
 #if !defined(XZ_DEC_SINGLE) && !defined(XZ_DEC_PREALLOC) \
 		&& !defined(XZ_DEC_DYNALLOC)

@@ -930,6 +930,45 @@ XZ_EXTERN enum xz_ret xz_dec_catrun(struct xz_dec *s, struct xz_buf *b,
 }
 #endif
 
+#ifdef XZ_DEC_FIXED_STORAGE
+/* Keep each private state naturally aligned within the caller's workspace. */
+static size_t storage_align(size_t size)
+{
+	const size_t alignment = _Alignof(max_align_t);
+	return size + (alignment - size % alignment) % alignment;
+}
+
+XZ_EXTERN size_t xz_dec_storage_size(uint32_t dict_max)
+{
+	const size_t state_bytes = storage_align(sizeof(struct xz_dec))
+			+ storage_align(xz_dec_lzma2_storage_size());
+	if (dict_max == 0 || dict_max > SIZE_MAX - state_bytes)
+		return 0;
+	return state_bytes + dict_max;
+}
+
+XZ_EXTERN struct xz_dec *xz_dec_init_preallocated(void *storage,
+		size_t storage_size, uint32_t dict_max)
+{
+	const size_t required = xz_dec_storage_size(dict_max);
+	struct xz_dec *s;
+	uint8_t *lzma2;
+	uint8_t *dictionary;
+
+	if (storage == NULL || (uintptr_t)storage % _Alignof(max_align_t) != 0
+			|| required == 0 || storage_size < required)
+		return NULL;
+
+	s = storage;
+	memzero(s, sizeof(*s));
+	lzma2 = (uint8_t *)storage + storage_align(sizeof(*s));
+	dictionary = lzma2 + storage_align(xz_dec_lzma2_storage_size());
+	s->mode = XZ_PREALLOC;
+	s->lzma2 = xz_dec_lzma2_init_storage(lzma2, dictionary, dict_max);
+	xz_dec_reset(s);
+	return s;
+}
+#else
 XZ_EXTERN struct xz_dec *xz_dec_init(enum xz_mode mode, uint32_t dict_max)
 {
 	struct xz_dec *s = kmalloc(sizeof(*s), GFP_KERNEL);
@@ -960,6 +999,8 @@ error_bcj:
 	return NULL;
 }
 
+#endif
+
 XZ_EXTERN void xz_dec_reset(struct xz_dec *s)
 {
 	s->sequence = SEQ_STREAM_HEADER;
@@ -979,6 +1020,8 @@ XZ_EXTERN void xz_dec_end(struct xz_dec *s)
 #ifdef XZ_DEC_BCJ
 		xz_dec_bcj_end(s->bcj);
 #endif
+#ifndef XZ_DEC_FIXED_STORAGE
 		kfree(s);
+#endif
 	}
 }

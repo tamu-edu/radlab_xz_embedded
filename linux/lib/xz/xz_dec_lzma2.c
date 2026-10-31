@@ -1137,6 +1137,24 @@ XZ_EXTERN enum xz_ret xz_dec_lzma2_run(struct xz_dec_lzma2 *s,
 	return XZ_OK;
 }
 
+#ifdef XZ_DEC_FIXED_STORAGE
+/* State and dictionary are disjoint, aligned slices validated by the caller. */
+XZ_EXTERN size_t xz_dec_lzma2_storage_size(void)
+{
+	return sizeof(struct xz_dec_lzma2);
+}
+
+XZ_EXTERN struct xz_dec_lzma2 *xz_dec_lzma2_init_storage(
+		void *state, uint8_t *dictionary, uint32_t dict_max)
+{
+	struct xz_dec_lzma2 *s = state;
+	memzero(s, sizeof(*s));
+	s->dict.mode = XZ_PREALLOC;
+	s->dict.size_max = dict_max;
+	s->dict.buf = dictionary;
+	return s;
+}
+#else
 XZ_EXTERN struct xz_dec_lzma2 *xz_dec_lzma2_create(enum xz_mode mode,
 						   uint32_t dict_max)
 {
@@ -1160,6 +1178,8 @@ XZ_EXTERN struct xz_dec_lzma2 *xz_dec_lzma2_create(enum xz_mode mode,
 
 	return s;
 }
+
+#endif
 
 XZ_EXTERN enum xz_ret xz_dec_lzma2_reset(struct xz_dec_lzma2 *s, uint8_t props)
 {
@@ -1199,10 +1219,14 @@ XZ_EXTERN enum xz_ret xz_dec_lzma2_reset(struct xz_dec_lzma2 *s, uint8_t props)
 
 XZ_EXTERN void xz_dec_lzma2_end(struct xz_dec_lzma2 *s)
 {
+#ifndef XZ_DEC_FIXED_STORAGE
 	if (DEC_IS_MULTI(s->dict.mode))
 		vfree(s->dict.buf);
 
 	kfree(s);
+#else
+	(void)s;
+#endif
 }
 
 #ifdef XZ_DEC_MICROLZMA

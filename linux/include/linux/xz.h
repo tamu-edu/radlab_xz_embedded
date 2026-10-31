@@ -151,6 +151,33 @@ struct xz_buf {
  */
 struct xz_dec;
 
+#ifdef XZ_DEC_FIXED_STORAGE
+/**
+ * xz_dec_storage_size() - Required caller-owned decoder storage
+ * @dict_max: Maximum dictionary size in bytes; must be nonzero.
+ *
+ * Returns zero if the size cannot be represented by size_t. Storage includes
+ * decoder state, alignment padding, and the complete dictionary.
+ */
+XZ_EXTERN size_t xz_dec_storage_size(uint32_t dict_max);
+
+/**
+ * xz_dec_init_preallocated() - Initialize without allocating memory
+ * @storage: Caller-owned storage aligned to _Alignof(max_align_t).
+ * @storage_size: Available storage bytes, at least xz_dec_storage_size().
+ * @dict_max: Maximum dictionary size in bytes; must be nonzero.
+ *
+ * Returns NULL for invalid storage, alignment, size, or dictionary limit.
+ * Storage must remain exclusively owned and valid until decoding ends.
+ * Independent workspaces support independent decoders. xz_dec_reset() reuses
+ * the storage; xz_dec_end() does not free caller-owned memory in this build.
+ * Initialize enabled CRC tables before using the decoder, as with xz_dec_init().
+ * This build supports preallocated LZMA2 only, without BCJ or MicroLZMA.
+ */
+XZ_EXTERN struct xz_dec *xz_dec_init_preallocated(void *storage,
+		size_t storage_size, uint32_t dict_max);
+#endif
+
 /**
  * xz_dec_init() - Allocate and initialize a XZ decoder state
  * @mode:       Operation mode
